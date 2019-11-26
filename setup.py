@@ -42,5 +42,5 @@ setup(
     setup_requires=['pytest-runner'],
     install_requires=['boto3'],
     extras_require={'jsonschema': ['jsonschema']},
-    tests_require=['pytest'],
+    tests_require=['pytest','mock'],
 )

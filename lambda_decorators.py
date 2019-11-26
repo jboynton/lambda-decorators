@@ -408,7 +408,7 @@ Usage::
         return cors_headers("*")(handler_or_origin)
 
 
-def dump_json_body(handler):
+def dump_json_body(_func=None, *, json_encoder_class = json.JSONEncoder):
     """
 Automatically serialize response bodies with json.dumps.
 
@@ -424,23 +424,31 @@ Usage::
   {'statusCode': 200, 'body': '{"hello": "world"}'}
     """
 
-    @wraps(handler)
-    def wrapper(event, context):
-        response = handler(event, context)
-        try:
-            if "body" in response:
-                try:
-                    response["body"] = json.dumps(response["body"])
-                except Exception as exception:
-                    return {"statusCode": 500, "body": str(exception)}
-        except Exception as exception:
+    def encoder_wrapper(handler):
+
+        @wraps(handler)
+        def wrapper(event, context):
+            response = handler(event, context)
+            try:
+                if "body" in response:
+                    try:
+                        response["body"] = json.dumps(response["body"], cls=json_encoder_class)
+                    except Exception as exception:
+                        return {"statusCode": 500, "body": str(exception)}
+            except Exception as exception:
+                return response
             return response
-        return response
+    
+        return wrapper
 
-    return wrapper
+    # Allows decorator to be invoked with or without args
+    if _func is None:
+        return encoder_wrapper
+    else:
+        return encoder_wrapper(_func)
 
 
-def json_http_resp(handler):
+def json_http_resp(_func=None, *, json_encoder_class = json.JSONEncoder):
     """
 Automatically serialize return value to the body of a successfull HTTP
 response.
@@ -468,14 +476,26 @@ in this example, the decorated handler returns:
     {'statusCode': 200, 'body': '{"hello": "world"}'}
     """
 
-    @wraps(handler)
-    def wrapper(event, context):
-        try:
-            return {"statusCode": 200, "body": json.dumps(handler(event, context))}
-        except Exception as exception:
-            return {"statusCode": 500, "body": str(exception)}
+    def encoder_wrapper(handler):
+        @wraps(handler)
+        def wrapper(event, context):
+            try:
+                return {
+                    "statusCode": 200,
+                    "body": json.dumps(
+                        handler(event, context),
+                        cls=json_encoder_class,
+                    )}
+            except Exception as exception:
+                return {"statusCode": 500, "body": str(exception)}
 
-    return wrapper
+        return wrapper
+
+    # Allows decorator to be invoked with or without args
+    if _func is None:
+        return encoder_wrapper
+    else:
+        return encoder_wrapper(_func)
 
 
 def load_json_body(handler):
